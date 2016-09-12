@@ -2050,7 +2050,7 @@ var   tau$1 = 2 * pi$1;
       }
     }
   };
-
+  // 线性的curve函数
   function curveLinear(context) {
     return new Linear(context);
   }
@@ -2081,7 +2081,9 @@ var   tau$1 = 2 * pi$1;
       if (context == null) output = curve(buffer = path());
 
       for (i = 0; i <= n; ++i) {
+        //defined0保持为true时表示正在绘制
         if (!(i < n && defined(d = data[i], i, data)) === defined0) {
+          //defined0由false变成true表示绘制开始，相反表示绘制结束。
           if (defined0 = !defined0) output.lineStart();
           else output.lineEnd();
         }
@@ -2113,7 +2115,9 @@ var   tau$1 = 2 * pi$1;
 
     return line;
   }
-
+  /* d3.area
+   * 首先根据x1, y1函数进行绘制，完成后根据x0, y0函数来反方向绘制，整个图形的绘制过程是顺时针方向。
+   */
   function area$1() {
     var x0 = x,
         x1 = null,
@@ -2139,6 +2143,7 @@ var   tau$1 = 2 * pi$1;
 
       for (i = 0; i <= n; ++i) {
         if (!(i < n && defined(d = data[i], i, data)) === defined0) {
+          //defined0由false变为true时，表示绘制开始，相反表示绘制结束
           if (defined0 = !defined0) {
             j = i;
             output.areaStart();
@@ -2146,26 +2151,30 @@ var   tau$1 = 2 * pi$1;
           } else {
             output.lineEnd();
             output.lineStart();
+            //反向绘制x0z, y0z，绘制方向为顺时针方向
             for (k = i - 1; k >= j; --k) {
               output.point(x0z[k], y0z[k]);
             }
             output.lineEnd();
+            // 关闭绘制区域
             output.areaEnd();
           }
         }
+        //defined0为true时可以绘制
         if (defined0) {
           x0z[i] = +x0(d, i, data), y0z[i] = +y0(d, i, data);
+          //优先使用x1和y1函数进行计算
           output.point(x1 ? +x1(d, i, data) : x0z[i], y1 ? +y1(d, i, data) : y0z[i]);
         }
       }
 
       if (buffer) return output = null, buffer + "" || null;
     }
-
+    // 返回与当前area有相同defined、curve和context的line构造器
     function arealine() {
       return line().defined(defined).curve(curve).context(context);
     }
-
+    // 设置x函数，将该函数赋值给x0，null赋值给x1
     area.x = function(_) {
       return arguments.length ? (x0 = typeof _ === "function" ? _ : constant$1(+_), x1 = null, area) : x0;
     };
@@ -2177,7 +2186,7 @@ var   tau$1 = 2 * pi$1;
     area.x1 = function(_) {
       return arguments.length ? (x1 = _ == null ? null : typeof _ === "function" ? _ : constant$1(+_), area) : x1;
     };
-
+    // 设置y函数，将该函数赋值给y0，null赋值给y1
     area.y = function(_) {
       return arguments.length ? (y0 = typeof _ === "function" ? _ : constant$1(+_), y1 = null, area) : y0;
     };
@@ -2189,7 +2198,7 @@ var   tau$1 = 2 * pi$1;
     area.y1 = function(_) {
       return arguments.length ? (y1 = _ == null ? null : typeof _ === "function" ? _ : constant$1(+_), area) : y1;
     };
-
+    // 分别对line构造器设置x和y函数
     area.lineX0 =
     area.lineY0 = function() {
       return arealine().x(x0).y(y0);
@@ -2202,7 +2211,7 @@ var   tau$1 = 2 * pi$1;
     area.lineX1 = function() {
       return arealine().x(x1).y(y0);
     };
-
+    // defined函数用来判断是否绘制当前点。这样可以生成离散的图形。
     area.defined = function(_) {
       return arguments.length ? (defined = typeof _ === "function" ? _ : constant$1(!!_), area) : defined;
     };
@@ -2304,9 +2313,9 @@ var   tau$1 = 2 * pi$1;
 
     return pie;
   }
-  // 构造放射线
+  // 构造放射线，分别构造线性和放射状曲线
   var curveRadialLinear = curveRadial(curveLinear);
-
+  // 射线构造函数
   function Radial(curve) {
     this._curve = curve;
   }
@@ -2324,11 +2333,12 @@ var   tau$1 = 2 * pi$1;
     lineEnd: function() {
       this._curve.lineEnd();
     },
+    // 根据弧度和半径计算x、y坐标
     point: function(a, r) {
       this._curve.point(r * Math.sin(a), r * -Math.cos(a));
     }
   };
-
+  //将当前curve函数包装成放射状curve
   function curveRadial(curve) {
 
     function radial(context) {
@@ -2339,7 +2349,7 @@ var   tau$1 = 2 * pi$1;
 
     return radial;
   }
-
+  // 将line中的(x, y)坐标替换成(angle, radius)
   function radialLine(l) {
     var c = l.curve;
 
