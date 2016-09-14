@@ -1056,7 +1056,7 @@ var   pi$1 = Math.PI;
 var   tau$1 = 2 * pi$1;
   var epsilon = 1e-6;
   var tauEpsilon = tau$1 - epsilon;
-  //path构造函数
+  //path构造函数，path用于绘图上下文
   function Path() {
     this._x0 = this._y0 = // 当前路径的起点
     this._x1 = this._y1 = null; // 当前路径的终点
@@ -2366,7 +2366,11 @@ var   tau$1 = 2 * pi$1;
   function radialLine$1() {
     return radialLine(line().curve(curveRadialLinear));
   }
-
+  
+  /*
+  `* d3.radialArea
+   * 在area的基础上修改curve函数，将x,y坐标转换为angle,radius坐标，其余绘制方式不变
+   */
   function radialArea() {
     var a = area$1().curve(curveRadialLinear),
         c = a.curve,
@@ -2374,7 +2378,7 @@ var   tau$1 = 2 * pi$1;
         x1 = a.lineX1,
         y0 = a.lineY0,
         y1 = a.lineY1;
-
+    // 将d3.area中的(x0, y0)和(x1, y1)转化成(startAngle, innerRadius)和(endAngle, outerRadius)
     a.angle = a.x, delete a.x;
     a.startAngle = a.x0, delete a.x0;
     a.endAngle = a.x1, delete a.x1;
@@ -2385,15 +2389,16 @@ var   tau$1 = 2 * pi$1;
     a.lineEndAngle = function() { return radialLine(x1()); }, delete a.lineX1;
     a.lineInnerRadius = function() { return radialLine(y0()); }, delete a.lineY0;
     a.lineOuterRadius = function() { return radialLine(y1()); }, delete a.lineY1;
-
+    // 对自定义的curve函数进行包装，防止计算时方法不能使用
     a.curve = function(_) {
       return arguments.length ? c(curveRadial(_)) : c()._curve;
     };
 
     return a;
   }
-
+  //symbol中circle图形
   var circle = {
+    //size是该圆形的面积
     draw: function(context, size) {
       var r = Math.sqrt(size / pi$2);
       context.moveTo(r, 0);
@@ -2511,7 +2516,7 @@ var   tau$1 = 2 * pi$1;
     triangle,
     wye
   ];
-
+  //d3.symbol，默认绘制面积为64的圆形
   function symbol() {
     var type = constant$1(circle),
         size = constant$1(64),
@@ -2523,15 +2528,15 @@ var   tau$1 = 2 * pi$1;
       type.apply(this, arguments).draw(context, +size.apply(this, arguments));
       if (buffer) return context = null, buffer + "" || null;
     }
-
+    //设置图形类型
     symbol.type = function(_) {
       return arguments.length ? (type = typeof _ === "function" ? _ : constant$1(_), symbol) : type;
     };
-
+    //设置图形的面积
     symbol.size = function(_) {
       return arguments.length ? (size = typeof _ === "function" ? _ : constant$1(+_), symbol) : size;
     };
-
+    //设置绘制上下文
     symbol.context = function(_) {
       return arguments.length ? (context = _ == null ? null : _, symbol) : context;
     };
@@ -2551,7 +2556,6 @@ var   tau$1 = 2 * pi$1;
       (that._y0 + 4 * that._y1 + y) / 6
     );
   }
-
   function Basis(context) {
     this._context = context;
   }
@@ -2576,6 +2580,7 @@ var   tau$1 = 2 * pi$1;
       if (this._line || (this._line !== 0 && this._point === 1)) this._context.closePath();
       this._line = 1 - this._line;
     },
+    //首先移动至起点即第一个点，记录下第一个点和第二个点坐标，连接当前点(第一个点)和((5 * x0 + x1) / 6, (5 * y0 + y1) / 6)，并绘制该点到((x0 + 4 * x1 + x) / 6, (y0 + 4 * y1 + y) / 6)点的三次贝塞尔曲线
     point: function(x, y) {
       x = +x, y = +y;
       switch (this._point) {
@@ -2588,7 +2593,7 @@ var   tau$1 = 2 * pi$1;
       this._y0 = this._y1, this._y1 = y;
     }
   };
-
+  // d3.curveBasis
   function basis(context) {
     return new Basis(context);
   }
@@ -2600,6 +2605,7 @@ var   tau$1 = 2 * pi$1;
   BasisClosed.prototype = {
     areaStart: noop,
     areaEnd: noop,
+    //(x1, y1)和(x2, y2)用于记录第一个和第二个点的坐标
     lineStart: function() {
       this._x0 = this._x1 = this._x2 = this._x3 = this._x4 =
       this._y0 = this._y1 = this._y2 = this._y3 = this._y4 = NaN;
@@ -2607,17 +2613,20 @@ var   tau$1 = 2 * pi$1;
     },
     lineEnd: function() {
       switch (this._point) {
+        //如果只有一个点，则移动到第一个点即该点处并关闭图形
         case 1: {
           this._context.moveTo(this._x2, this._y2);
           this._context.closePath();
           break;
         }
+        //如果有两个点，则按如下方式处理
         case 2: {
           this._context.moveTo((this._x2 + 2 * this._x3) / 3, (this._y2 + 2 * this._y3) / 3);
           this._context.lineTo((this._x3 + 2 * this._x2) / 3, (this._y3 + 2 * this._y2) / 3);
           this._context.closePath();
           break;
         }
+        //从最后一个点向前绘制，x2,x3,x4分别记录的是前三个点坐标
         case 3: {
           this.point(this._x2, this._y2);
           this.point(this._x3, this._y3);
@@ -2629,8 +2638,10 @@ var   tau$1 = 2 * pi$1;
     point: function(x, y) {
       x = +x, y = +y;
       switch (this._point) {
+        //记录最初的三个点的坐标
         case 0: this._point = 1; this._x2 = x, this._y2 = y; break;
         case 1: this._point = 2; this._x3 = x, this._y3 = y; break;
+        //到最后会绘制一个闭合图形，与初始点连接
         case 2: this._point = 3; this._x4 = x, this._y4 = y; this._context.moveTo((this._x0 + 4 * this._x1 + x) / 6, (this._y0 + 4 * this._y1 + y) / 6); break;
         default: point(this, x, y); break;
       }
@@ -2638,7 +2649,7 @@ var   tau$1 = 2 * pi$1;
       this._y0 = this._y1, this._y1 = y;
     }
   };
-
+  //d3.curveBasisClosed
   function basisClosed(context) {
     return new BasisClosed(context);
   }
@@ -2663,6 +2674,7 @@ var   tau$1 = 2 * pi$1;
       if (this._line || (this._line !== 0 && this._point === 3)) this._context.closePath();
       this._line = 1 - this._line;
     },
+    //记录第一个和第二个点的坐标，从第三个点处开始操作，移动至((x0 + 4 * x1 + x) / 6, (y0 + y1 * 4 + y) / 6) 点处
     point: function(x, y) {
       x = +x, y = +y;
       switch (this._point) {
@@ -2676,7 +2688,7 @@ var   tau$1 = 2 * pi$1;
       this._y0 = this._y1, this._y1 = y;
     }
   };
-
+  //d3.curveBasisOpen
   function basisOpen(context) {
     return new BasisOpen(context);
   }
@@ -2692,6 +2704,7 @@ var   tau$1 = 2 * pi$1;
       this._y = [];
       this._basis.lineStart();
     },
+    //结束时开始处理数据并绘制图形
     lineEnd: function() {
       var x = this._x,
           y = this._y,
@@ -2700,6 +2713,7 @@ var   tau$1 = 2 * pi$1;
       if (j > 0) {
         var x0 = x[0],
             y0 = y[0],
+            //计算起始点到结束点之间x和y的差值
             dx = x[j] - x0,
             dy = y[j] - y0,
             i = -1,
@@ -2707,6 +2721,8 @@ var   tau$1 = 2 * pi$1;
 
         while (++i <= j) {
           t = i / j;
+          //根据比例确定绘制点的位置，绘制范围在(x0, y0)和(x[j], y[j])之间
+          //当x接近0时，结果近似为一条从起始点到结束点的直线；当x接近1时，结果接近d3.curveBasis
           this._basis.point(
             this._beta * x[i] + (1 - this._beta) * (x0 + t * dx),
             this._beta * y[i] + (1 - this._beta) * (y0 + t * dy)
@@ -2717,12 +2733,13 @@ var   tau$1 = 2 * pi$1;
       this._x = this._y = null;
       this._basis.lineEnd();
     },
+    //该方法不会绘制图形，只是将数据存入数组在结束绘制时开始处理数据
     point: function(x, y) {
       this._x.push(+x);
       this._y.push(+y);
     }
   };
-
+  //d3.curveBundle
   var bundle = (function custom(beta) {
 
     function bundle(context) {
@@ -3372,7 +3389,7 @@ var   tau$1 = 2 * pi$1;
   }
 
   var slice$2 = Array.prototype.slice;
-
+  //根据order中的索引顺序对数据进行偏移处理，如a = [0, 200]，b = [0, 150]且根据索引a排在b的前面则b会被处理为[200, 350]
   function none(series, order) {
     if (!((n = series.length) > 1)) return;
     for (var i = 1, s0, s1 = series[order[0]], n, m = s1.length; i < n; ++i) {
@@ -3382,7 +3399,7 @@ var   tau$1 = 2 * pi$1;
       }
     }
   }
-
+  //依次存储数组的索引
   function none$1(series) {
     var n = series.length, o = new Array(n);
     while (--n >= 0) o[n] = n;
@@ -3392,7 +3409,7 @@ var   tau$1 = 2 * pi$1;
   function stackValue(d, key) {
     return d[key];
   }
-
+  //d3.stack
   function stack() {
     var keys = constant$1([]),
         order = none$1,
@@ -3400,11 +3417,15 @@ var   tau$1 = 2 * pi$1;
         value = stackValue;
 
     function stack(data) {
+        //按照keys数组对data依次进行处理
+        //
       var kz = keys.apply(this, arguments),
           i,
           m = data.length,
           n = kz.length,
+          //sz用于存储最后的处理结果
           sz = new Array(n),
+          //oz用于存储排序方式处理后的index
           oz;
 
       for (i = 0; i < n; ++i) {
