@@ -3409,7 +3409,10 @@ var   tau$1 = 2 * pi$1;
   function stackValue(d, key) {
     return d[key];
   }
-  //d3.stack
+  /*
+   * d3.stack
+   * 最后计算结果是一个包含多个系列的数组，每个系列有多个点，并且每个点含有两个值分别表示baseline和topline
+   */
   function stack() {
     var keys = constant$1([]),
         order = none$1,
@@ -3418,7 +3421,6 @@ var   tau$1 = 2 * pi$1;
 
     function stack(data) {
         //按照keys数组对data依次进行处理
-        //
       var kz = keys.apply(this, arguments),
           i,
           m = data.length,
@@ -3443,7 +3445,7 @@ var   tau$1 = 2 * pi$1;
       offset(sz, oz);
       return sz;
     }
-
+    //一个返回包含多个字符串数组的函数，用于传入value函数中来取值
     stack.keys = function(_) {
       return arguments.length ? (keys = typeof _ === "function" ? _ : constant$1(slice$2.call(_)), stack) : keys;
     };
