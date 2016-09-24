@@ -1209,9 +1209,16 @@ var   tau$1 = 2 * pi$1;
         y = +this._y.call(null, d);
     return add(this.cover(x, y), x, y, d);
   }
-
+  /* d3.quadtree的add方法，用于添加node
+   * add方法的执行流程如下：
+   * 1. 首次添加data0时，由于_root不存在，直接对其赋值data并返回。
+   * 2. 第二次添加data1时，node中此时是第一次添加的data0，执行do while循环，为_root赋值一个空数组。判断data1和data0是否是在一个象限(这里将一个区域划分成的四块叫做象限)，如果不在则根据索引分别添加至数组中；
+   * 如果在则对该象限再次划分四个区域，继续判断是否在同一个象限。
+   * 3. 之后每次添加data时，都会先查找该节点属于哪个象限，根据索引查找node，如果是数组则说明该区域有节点且已经再次划分了象限，则继续进入查找；如果是对象，则说明该区域只有一个节点，此时会对该区域进行划分执行步骤2中的过程；如果是undefined则直接插入该出。
+   * 
+   */
   function add(tree, x, y, d) {
-    if (isNaN(x) || isNaN(y)) return tree; // ignore invalid points
+    if (isNaN(x) || isNaN(y)) return tree;
 
     var parent,
         node = tree._root,
@@ -1220,6 +1227,7 @@ var   tau$1 = 2 * pi$1;
         y0 = tree._y0,
         x1 = tree._x1,
         y1 = tree._y1,
+        //(xm, ym)表示该区域的中心点
         xm,
         ym,
         xp,
@@ -1229,30 +1237,31 @@ var   tau$1 = 2 * pi$1;
         i,
         j;
 
-    // If the tree is empty, initialize the root as a leaf.
+    // 如果treenode当前不包含任何node，将leaf作为其节点
     if (!node) return tree._root = leaf, tree;
 
-    // Find the existing leaf for the new point, or add it.
+    // 看(x, y)是否和已有的点在一个象限中，若不是则直接插入，否则往下继续执行
     while (node.length) {
       if (right = x >= (xm = (x0 + x1) / 2)) x0 = xm; else x1 = xm;
       if (bottom = y >= (ym = (y0 + y1) / 2)) y0 = ym; else y1 = ym;
       if (parent = node, !(node = node[i = bottom << 1 | right])) return parent[i] = leaf, tree;
     }
 
-    // Is the new point is exactly coincident with the existing point?
+    // 判断(x, y)是否已存在当前节点中
     xp = +tree._x.call(null, node.data);
     yp = +tree._y.call(null, node.data);
     if (x === xp && y === yp) return leaf.next = node, parent ? parent[i] = leaf : tree._root = leaf, tree;
 
-    // Otherwise, split the leaf node until the old and new point are separated.
+    // 将当前区域进行划分，直至(x, y)和之前的节点不在同一个象限内
     do {
+      //parent = parent[i] = new Array(4)会为parent赋值一个空数组，但是由于node = parent，node会形成一个多维数组
       parent = parent ? parent[i] = new Array(4) : tree._root = new Array(4);
       if (right = x >= (xm = (x0 + x1) / 2)) x0 = xm; else x1 = xm;
       if (bottom = y >= (ym = (y0 + y1) / 2)) y0 = ym; else y1 = ym;
     } while ((i = bottom << 1 | right) === (j = (yp >= ym) << 1 | (xp >= xm)));
     return parent[j] = node, parent[i] = leaf, tree;
   }
-
+  //d3.quadtree的addAll方法，先计算数据的范围调整quadtree，之后再添加数据
   function addAll(data) {
     var d, i, n = data.length,
         x,
@@ -1264,8 +1273,9 @@ var   tau$1 = 2 * pi$1;
         x1 = -Infinity,
         y1 = -Infinity;
 
-    // Compute the points and their extent.
+    // 根据_x和_y方法计算data值，得到x、y的范围[x0, x1]和[y0, y1]，即矩形区域的范围
     for (i = 0; i < n; ++i) {
+      // this._x和this._y是quadtree中定义的获取x、y坐标的方法
       if (isNaN(x = +this._x.call(null, d = data[i])) || isNaN(y = +this._y.call(null, d))) continue;
       xz[i] = x;
       yz[i] = y;
@@ -1275,44 +1285,43 @@ var   tau$1 = 2 * pi$1;
       if (y > y1) y1 = y;
     }
 
-    // If there were no (valid) points, inherit the existing extent.
+    // 无效点时的处理
     if (x1 < x0) x0 = this._x0, x1 = this._x1;
     if (y1 < y0) y0 = this._y0, y1 = this._y1;
 
-    // Expand the tree to cover the new points.
+    // 为quadtree添加范围
     this.cover(x0, y0).cover(x1, y1);
 
-    // Add the new points.
+    // 添加node
     for (i = 0; i < n; ++i) {
       add(this, xz[i], yz[i], data[i]);
     }
 
     return this;
   }
-
+  //为quadtree设置区域范围
   function tree_cover(x, y) {
-    if (isNaN(x = +x) || isNaN(y = +y)) return this; // ignore invalid points
+    if (isNaN(x = +x) || isNaN(y = +y)) return this;
 
     var x0 = this._x0,
         y0 = this._y0,
         x1 = this._x1,
         y1 = this._y1;
 
-    // If the quadtree has no extent, initialize them.
-    // Integer extent are necessary so that if we later double the extent,
-    // the existing quadrant boundaries don’t change due to floating point error!
+    // 如果该quadtree范围不存在，则根据当前的(x, y)坐标取范围
     if (isNaN(x0)) {
       x1 = (x0 = Math.floor(x)) + 1;
       y1 = (y0 = Math.floor(y)) + 1;
     }
 
-    // Otherwise, double repeatedly to cover.
+    // 如果(x, y)在当前范围之外，则扩展当前范围
     else if (x0 > x || x > x1 || y0 > y || y > y1) {
       var z = x1 - x0,
           node = this._root,
           parent,
           i;
-
+      //将该矩形区域的中心看做坐标轴原点，根据x、y坐标轴划分成大小相等的四块区域，0表示右下方，1表示左下方，2表示右上方，3表示左上方。
+      //成倍的增长z，扩大当前范围直至(x, y)在当前区域内，在扩大范围的同时不断的构造node数组
       switch (i = (y < (y0 + y1) / 2) << 1 | (x < (x0 + x1) / 2)) {
         case 0: {
           do parent = new Array(4), parent[i] = node, node = parent;
@@ -1339,7 +1348,7 @@ var   tau$1 = 2 * pi$1;
       if (this._root && this._root.length) this._root = node;
     }
 
-    // If the quadtree covers the point already, just return.
+    // 如果(x, y)已经在当前范围内，则直接返回
     else return this;
 
     this._x0 = x0;
@@ -1348,7 +1357,7 @@ var   tau$1 = 2 * pi$1;
     this._y1 = y1;
     return this;
   }
-
+  //返回quadtree中所有的node
   function tree_data() {
     var data = [];
     this.visit(function(node) {
@@ -1356,13 +1365,30 @@ var   tau$1 = 2 * pi$1;
     });
     return data;
   }
-
+  //若有参数且_ = [[x0, y0], [x1, y1]]用于通过cover方法设置quadtree的范围[x0, y0]和[x1, y1]；若没有参数，则以同样的数组形式返回当前区域的范围。
   function tree_extent(_) {
     return arguments.length
         ? this.cover(+_[0][0], +_[0][1]).cover(+_[1][0], +_[1][1])
         : isNaN(this._x0) ? undefined : [[this._x0, this._y0], [this._x1, this._y1]];
   }
-
+  /**
+   * Quad构造函数
+   * @param {object} node 节点数据
+   * @param {number} x0   该节点的区域坐标范围
+   * @param {number} y0   该节点的区域坐标范围
+   * @param {number} x1   该节点的区域坐标范围
+   * @param {number} y1   该节点的区域坐标范围
+   *
+   * quad对象在quadtree的node中的位置如下：
+   * 
+   *        |
+   *    0   |    1
+   *        |
+   * -------|--------
+   *        |
+   *    2   |    3
+   *        |
+   */
   function Quad(node, x0, y0, x1, y1) {
     this.node = node;
     this.x0 = x0;
@@ -1370,11 +1396,13 @@ var   tau$1 = 2 * pi$1;
     this.x1 = x1;
     this.y1 = y1;
   }
-
+  //查找以(x, y)为中心，radius为半径的范围内离中心最近的点
   function tree_find(x, y, radius) {
     var data,
+      //(x0, y0)和(x3, y3)表示以(x, y)为中心的矩形搜索区域
         x0 = this._x0,
         y0 = this._y0,
+      //(x1, y1)和(x2, y2)表示当前node所在的区域范围
         x1,
         y1,
         x2,
@@ -1387,6 +1415,7 @@ var   tau$1 = 2 * pi$1;
         i;
 
     if (node) quads.push(new Quad(node, x0, y0, x3, y3));
+    //若没有设置radius则默认为Infinity
     if (radius == null) radius = Infinity;
     else {
       x0 = x - radius, y0 = y - radius;
@@ -1396,18 +1425,21 @@ var   tau$1 = 2 * pi$1;
 
     while (q = quads.pop()) {
 
-      // Stop searching if this quadrant can’t contain a closer node.
+      // 如果node不存在或者(x, y)在该node范围外则跳过执行
       if (!(node = q.node)
+          //node所在区域与搜索区域不重叠
+          //
+          //
           || (x1 = q.x0) > x3
           || (y1 = q.y0) > y3
           || (x2 = q.x1) < x0
           || (y2 = q.y1) < y0) continue;
 
-      // Bisect the current quadrant.
+      // 如果node为数组说明已对其进行了区域划分，开始递归查找
       if (node.length) {
         var xm = (x1 + x2) / 2,
             ym = (y1 + y2) / 2;
-
+        // node数组中0表示区域左上角，1表示右上角，2表示左下角，3表示右下角
         quads.push(
           new Quad(node[3], xm, ym, x2, y2),
           new Quad(node[2], x1, ym, xm, y2),
@@ -1415,7 +1447,7 @@ var   tau$1 = 2 * pi$1;
           new Quad(node[0], x1, y1, xm, ym)
         );
 
-        // Visit the closest quadrant first.
+        // 判断(x, y)所在的象限，并将该象限对应的node与栈顶的数据交换位置，如果是左上角区域及表示已是栈顶则不用处理
         if (i = (y >= ym) << 1 | (x >= xm)) {
           q = quads[quads.length - 1];
           quads[quads.length - 1] = quads[quads.length - 1 - i];
@@ -1423,7 +1455,7 @@ var   tau$1 = 2 * pi$1;
         }
       }
 
-      // Visit this point. (Visiting coincident points isn’t necessary!)
+      // 当查找到在搜索范围内的点后，缩小搜索范围
       else {
         var dx = x - +this._x.call(null, node.data),
             dy = y - +this._y.call(null, node.data),
@@ -1441,7 +1473,7 @@ var   tau$1 = 2 * pi$1;
   }
 
   function tree_remove(d) {
-    if (isNaN(x = +this._x.call(null, d)) || isNaN(y = +this._y.call(null, d))) return this; // ignore invalid points
+    if (isNaN(x = +this._x.call(null, d)) || isNaN(y = +this._y.call(null, d))) return this; 
 
     var parent,
         node = this._root,
@@ -1461,20 +1493,22 @@ var   tau$1 = 2 * pi$1;
         i,
         j;
 
-    // If the tree is empty, initialize the root as a leaf.
     if (!node) return this;
 
-    // Find the leaf node for the point.
-    // While descending, also retain the deepest parent with a non-removed sibling.
+    // 当node中有多个点时，进入查找
     if (node.length) while (true) {
+      //计算(x, y)所在的象限
       if (right = x >= (xm = (x0 + x1) / 2)) x0 = xm; else x1 = xm;
       if (bottom = y >= (ym = (y0 + y1) / 2)) y0 = ym; else y1 = ym;
+      //如果对应的象限中没有点，则说明查找不到该点，直接返回。
       if (!(parent = node, node = node[i = bottom << 1 | right])) return this;
+      //如果该象限只有一个点则跳出循环往下执行。
       if (!node.length) break;
+      //
       if (parent[(i + 1) & 3] || parent[(i + 2) & 3] || parent[(i + 3) & 3]) retainer = parent, j = i;
     }
 
-    // Find the point to remove.
+    // TODO: 这里存在一个问题，由于node.data和d都为数组，但是两个数据是不同的指针，因此这里不会相等
     while (node.data !== d) if (!(previous = node, node = node.next)) return this;
     if (next = node.next) delete node.next;
 
@@ -1506,7 +1540,7 @@ var   tau$1 = 2 * pi$1;
   function tree_root() {
     return this._root;
   }
-
+  //返回quadtree中data的个数
   function tree_size() {
     var size = 0;
     this.visit(function(node) {
@@ -1514,7 +1548,7 @@ var   tau$1 = 2 * pi$1;
     });
     return size;
   }
-
+  //采用先序遍历（先访问根节点，后访问左右孩子节点）的方式，如果callback返回true，则执行不再访问其子节点；否则继续访问其子节点
   function tree_visit(callback) {
     var quads = [], q, node = this._root, child, x0, y0, x1, y1;
     if (node) quads.push(new Quad(node, this._x0, this._y0, this._x1, this._y1));
@@ -1529,7 +1563,7 @@ var   tau$1 = 2 * pi$1;
     }
     return this;
   }
-
+  //采用后序遍历（先访问左右孩子节点，后访问根节点）的方式，先将所有节点存入数组中，然后依次对所有节点进行操作。
   function tree_visitAfter(callback) {
     var quads = [], next = [], q;
     if (this._root) quads.push(new Quad(this._root, this._x0, this._y0, this._x1, this._y1));
@@ -1565,12 +1599,26 @@ var   tau$1 = 2 * pi$1;
   function tree_y(_) {
     return arguments.length ? (this._y = _, this) : this._y;
   }
-
+  /**
+   * d3.quadtree用于生成四叉树
+   * @param  {object} nodes 将要添加到quadtree中的所有节点
+   * @param  {function} x     用于获取节点的x坐标的函数
+   * @param  {function} y     用于获取节点的y坐标的函数
+   * @return {object}       该quadtree对象
+   */
   function quadtree(nodes, x, y) {
     var tree = new Quadtree(x == null ? defaultX : x, y == null ? defaultY : y, NaN, NaN, NaN, NaN);
     return nodes == null ? tree : tree.addAll(nodes);
   }
-
+  /**
+   * 四叉树的构造函数
+   * @param {function} x  获取x坐标
+   * @param {function} y  获取y坐标
+   * @param {number} x0 [x0, y0]到[x1, y1]为该quadtree的矩形区域的范围
+   * @param {number} y0 [x0, y0]到[x1, y1]为该quadtree的矩形区域的范围
+   * @param {number} x1 [x0, y0]到[x1, y1]为该quadtree的矩形区域的范围
+   * @param {number} y1 [x0, y0]到[x1, y1]为该quadtree的矩形区域的范围
+   */
   function Quadtree(x, y, x0, y0, x1, y1) {
     this._x = x;
     this._y = y;
@@ -1580,7 +1628,7 @@ var   tau$1 = 2 * pi$1;
     this._y1 = y1;
     this._root = undefined;
   }
-
+  //复制叶子节点
   function leaf_copy(leaf) {
     var copy = {data: leaf.data}, next = copy;
     while (leaf = leaf.next) next = next.next = {data: leaf.data};
@@ -1588,7 +1636,7 @@ var   tau$1 = 2 * pi$1;
   }
 
   var treeProto = quadtree.prototype = Quadtree.prototype;
-
+  //对quadtree进行复制，但是是通过引用来复制的而不是复制值。
   treeProto.copy = function() {
     var copy = new Quadtree(this._x, this._y, this._x0, this._y0, this._x1, this._y1),
         node = this._root,
@@ -4576,17 +4624,18 @@ var   tau$1 = 2 * pi$1;
   var noop$1 = {value: function() {}};
 
   function dispatch() {
+    //将传入的参数作为键值存入Dispatch对象中
     for (var i = 0, n = arguments.length, _ = {}, t; i < n; ++i) {
       if (!(t = arguments[i] + "") || (t in _)) throw new Error("illegal type: " + t);
       _[t] = [];
     }
     return new Dispatch(_);
   }
-
+  //Dispatch构造函数
   function Dispatch(_) {
     this._ = _;
   }
-
+  //对typenames进行解析，若输入为'click.my1 drag.my2'，输出为[{type: 'click', name: 'my1'}, {type: 'drag', name: 'my2'}]
   function parseTypenames(typenames, types) {
     return typenames.trim().split(/^|\s+/).map(function(t) {
       var name = "", i = t.indexOf(".");
@@ -4598,6 +4647,7 @@ var   tau$1 = 2 * pi$1;
 
   Dispatch.prototype = dispatch.prototype = {
     constructor: Dispatch,
+    //绑定事件类型和回调函数
     on: function(typename, callback) {
       var _ = this._,
           T = parseTypenames(typename + "", _),
@@ -4636,7 +4686,7 @@ var   tau$1 = 2 * pi$1;
       for (var t = this._[type], i = 0, n = t.length; i < n; ++i) t[i].value.apply(that, args);
     }
   };
-
+  //获取回调函数
   function get(type, name) {
     for (var i = 0, n = type.length, c; i < n; ++i) {
       if ((c = type[i]).name === name) {
@@ -4644,7 +4694,7 @@ var   tau$1 = 2 * pi$1;
       }
     }
   }
-
+  //设置回调函数
   function set$1(type, name, callback) {
     for (var i = 0, n = type.length; i < n; ++i) {
       if (type[i].name === name) {
@@ -5012,18 +5062,21 @@ var   tau$1 = 2 * pi$1;
   var clockLast = 0;
   var clockNow = 0;
   var clockSkew = 0;
+  //若performance.now存在则通过其获取时间，否则使用Date，其中performance.now得到的是页面刚开始加载到当前执行所经历的时间
   var clock = typeof performance === "object" && performance.now ? performance : Date;
+  //若requestAnimationFrame存在则返回该方法，否则使用setTimeout方法来模拟，17是根据屏幕的刷新频率是60Hz，每1000 / 60 = 17ms刷新一次得到的。
   var setFrame = typeof requestAnimationFrame === "function"
           ? (clock === Date ? function(f) { requestAnimationFrame(function() { f(clock.now()); }); } : requestAnimationFrame)
           : function(f) { setTimeout(f, 17); };
   function now() {
+    //屏幕每刷新一次就将clockNow置零。
     return clockNow || (setFrame(clearNow), clockNow = clock.now() + clockSkew);
   }
 
   function clearNow() {
     clockNow = 0;
   }
-
+  //Timer构造函数
   function Timer() {
     this._call =
     this._time =
@@ -5052,7 +5105,7 @@ var   tau$1 = 2 * pi$1;
       }
     }
   };
-
+  //调用定时器，并restart
   function timer(callback, delay, time) {
     var t = new Timer;
     t.restart(callback, delay, time);
@@ -10434,7 +10487,7 @@ var   keyPrefix$1 = "$";
 
     return resquarify;
   })(phi);
-
+  //d3.forceCenter
   function center$1(x, y) {
     var nodes;
 
@@ -10451,8 +10504,9 @@ var   keyPrefix$1 = "$";
       for (i = 0; i < n; ++i) {
         node = nodes[i], sx += node.x, sy += node.y;
       }
-
+      //这里简化了粒子的质量，认为都相等，通过sx / n和sy / n得到所有粒子的重心
       for (sx = sx / n - x, sy = sy / n - y, i = 0; i < n; ++i) {
+        //将所有粒子的坐标向中心点靠近
         node = nodes[i], node.x -= sx, node.y -= sy;
       }
     }
@@ -10489,13 +10543,13 @@ var   keyPrefix$1 = "$";
   function y$1(d) {
     return d.y + d.vy;
   }
-
+  //d3.forceCollide
   function collide(radius) {
     var nodes,
         radii,
         strength = 1,
         iterations = 1;
-
+    //如果没有设置radius，则默认为1
     if (typeof radius !== "function") radius = constant$6(radius == null ? 1 : +radius);
 
     function force() {
@@ -10508,7 +10562,9 @@ var   keyPrefix$1 = "$";
           ri2;
 
       for (var k = 0; k < iterations; ++k) {
+        //visitAfter函数使得对每个node都执行prepare。这里采用后续遍历的方法，因为只有知道了孩子节点的半径才能确定根节点半径
         tree = quadtree(nodes, x$1, y$1).visitAfter(prepare);
+        //依次访问所有的node节点，判断其他节点是否可能与其重叠
         for (i = 0; i < n; ++i) {
           node = nodes[i];
           ri = radii[i], ri2 = ri * ri;
@@ -10517,10 +10573,12 @@ var   keyPrefix$1 = "$";
           tree.visit(apply);
         }
       }
-
+      //这里用于对重叠的节点进行处理，如果当前节点为根节点则判断node是否与该根节点的范围有重叠，如果没有则返回true，不再访问其子节点；否则继续访问其子节点。
+      //如果当前节点为叶子节点，
       function apply(quad, x0, y0, x1, y1) {
         var data = quad.data, rj = quad.r, r = ri + rj;
         if (data) {
+          // 只比较index大于i的，可防止重复比较
           if (data.index > i) {
             var x = xi - data.x - data.vx,
                 y = yi - data.y - data.vy,
@@ -10529,6 +10587,8 @@ var   keyPrefix$1 = "$";
               if (x === 0) x = jiggle(), l += x * x;
               if (y === 0) y = jiggle(), l += y * y;
               l = (r - (l = Math.sqrt(l))) / l * strength;
+              //根据两个节点间的距离和两个节点的半径对node和data的速度进行调整
+              //TODO: 为什么这样调整？？？
               node.vx += (x *= l) * (r = (rj *= rj) / (ri2 + rj));
               node.vy += (y *= l) * r;
               data.vx -= x * (r = 1 - r);
@@ -10540,29 +10600,30 @@ var   keyPrefix$1 = "$";
         return x0 > xi + r || x1 < xi - r || y0 > yi + r || y1 < yi - r;
       }
     }
-
+    //为所有节点设置半径
     function prepare(quad) {
       if (quad.data) return quad.r = radii[quad.data.index];
+      //quad是一个数组，即quad不是叶子节点时，将其所有子节点的最大半径复制给quad.r
       for (var i = quad.r = 0; i < 4; ++i) {
         if (quad[i] && quad[i].r > quad.r) {
           quad.r = quad[i].r;
         }
       }
     }
-
+    //初始化时通过radius函数处理nodes得到每个node的半径
     force.initialize = function(_) {
       var i, n = (nodes = _).length; radii = new Array(n);
       for (i = 0; i < n; ++i) radii[i] = +radius(nodes[i], i, nodes);
     };
-
+    //iteration值越大，node节点重叠情况就会越小
     force.iterations = function(_) {
       return arguments.length ? (iterations = +_, force) : iterations;
     };
-
+    //strength用于在两个节点重叠时调整节点的速度
     force.strength = function(_) {
       return arguments.length ? (strength = +_, force) : strength;
     };
-
+    //设置节点的获取半径的函数
     force.radius = function(_) {
       return arguments.length ? (radius = typeof _ === "function" ? _ : constant$6(+_), force) : radius;
     };
@@ -10574,19 +10635,26 @@ var   keyPrefix$1 = "$";
     return i;
   }
 
+  /* d3.forceLink
+   * force用于控制节点之间的联系
+   * !将于节点相连的link的数量记作该节点的权值
+   */
   function link(links) {
     var id = index$2,
         strength = defaultStrength,
         strengths,
+        //默认link的长度都为30
         distance = constant$6(30),
         distances,
         nodes,
+        //count记录跟每个节点有关联的节点数量，即该节点的权值
         count,
+        //bias存储每条link对应的source的权值与source和target权值和的比值
         bias,
         iterations = 1;
 
     if (links == null) links = [];
-
+    //默认计算link的强度的方法
     function defaultStrength(link) {
       return 1 / Math.min(count[link.source.index], count[link.target.index]);
     }
@@ -10597,9 +10665,11 @@ var   keyPrefix$1 = "$";
           link = links[i], source = link.source, target = link.target;
           x = target.x + target.vx - source.x - source.vx || jiggle();
           y = target.y + target.vy - source.y - source.vy || jiggle();
+          //target和source的距离为l
           l = Math.sqrt(x * x + y * y);
           l = (l - distances[i]) / l * alpha * strengths[i];
           x *= l, y *= l;
+          //对target和source的速度进行调整
           target.vx -= x * (b = bias[i]);
           target.vy -= y * b;
           source.vx += x * (b = 1 - b);
@@ -10614,6 +10684,7 @@ var   keyPrefix$1 = "$";
       var i,
           n = nodes.length,
           m = links.length,
+          //对nodes中每个值设置id作为键值
           nodeById = map$1(nodes, id),
           link;
 
@@ -10623,6 +10694,7 @@ var   keyPrefix$1 = "$";
 
       for (i = 0; i < m; ++i) {
         link = links[i], link.index = i;
+        //将link中的source和target值作为id来查找node
         if (typeof link.source !== "object") link.source = nodeById.get(link.source);
         if (typeof link.target !== "object") link.target = nodeById.get(link.target);
         ++count[link.source.index], ++count[link.target.index];
@@ -10690,24 +10762,34 @@ var   keyPrefix$1 = "$";
 
   var initialRadius = 10;
   var initialAngle = Math.PI * (3 - Math.sqrt(5));
+  //d3.forceSimulation用于设置节点和相关参数
   function simulation(nodes) {
     var simulation,
+        //alpha表示simulation当前的状态
         alpha = 1,
         alphaMin = 0.001,
+        //alphaDecay表示alpha每次的衰减率
         alphaDecay = 1 - Math.pow(alphaMin, 1 / 300),
+        //alphaTarget表示最终要稳定时的状态
         alphaTarget = 0,
+        //velocityDecay表示速度的衰退率
         velocityDecay = 0.6,
+        //用于存储force函数
         forces = map$1(),
         stepper = timer(step),
+        //simulation包含以下两种类型的事件
         event = dispatch("tick", "end");
 
     if (nodes == null) nodes = [];
 
     function step() {
       tick();
+      //自定义的tick函数，在这里被调用
       event.call("tick", simulation);
+      //当alpha小于临界值即alphaMin时，停止计时
       if (alpha < alphaMin) {
         stepper.stop();
+        //自定义的end函数在这里调用
         event.call("end", simulation);
       }
     }
@@ -10716,28 +10798,32 @@ var   keyPrefix$1 = "$";
       var i, n = nodes.length, node;
 
       alpha += (alphaTarget - alpha) * alphaDecay;
-
+      //alpha用于force中对速度vx和vy进行设置
       forces.each(function(force) {
         force(alpha);
       });
 
       for (i = 0; i < n; ++i) {
         node = nodes[i];
+        //fx和fy是node的固定点，如果设置了该属性则node会固定在该位置
+        //这里简化了物理作用力，将当前位置坐标加上当前速度得到下一步的位置坐标
         if (node.fx == null) node.x += node.vx *= velocityDecay;
         else node.x = node.fx, node.vx = 0;
         if (node.fy == null) node.y += node.vy *= velocityDecay;
         else node.y = node.fy, node.vy = 0;
       }
     }
-
+    //对nodes进行处理
     function initializeNodes() {
       for (var i = 0, n = nodes.length, node; i < n; ++i) {
         node = nodes[i], node.index = i;
+        //如果node中不含x、 y值，则按默认方法计算。
         if (isNaN(node.x) || isNaN(node.y)) {
           var radius = initialRadius * Math.sqrt(i), angle = i * initialAngle;
           node.x = radius * Math.cos(angle);
           node.y = radius * Math.sin(angle);
         }
+        //如果不含vx、vy值，则默认为0。
         if (isNaN(node.vx) || isNaN(node.vy)) {
           node.vx = node.vy = 0;
         }
@@ -10761,7 +10847,7 @@ var   keyPrefix$1 = "$";
       stop: function() {
         return stepper.stop(), simulation;
       },
-
+      //设置nodes时会对所有的force进行初始化
       nodes: function(_) {
         return arguments.length ? (nodes = _, initializeNodes(), forces.each(initializeForce), simulation) : nodes;
       },
@@ -10818,15 +10904,18 @@ var   keyPrefix$1 = "$";
       }
     };
   }
-
+  //d3.forceManyBody
   function manyBody() {
     var nodes,
         node,
         alpha,
+        //当strength为正值时粒子间会互相吸引，当为负值时粒子间会互相排斥
+        //在这里表现为当strength为正值时，两个互相作用的粒子速度会增加，互相靠近；为负值时，两个粒子速度减小，互相远离。
         strength = constant$6(-30),
         strengths,
         distanceMin2 = 1,
         distanceMax2 = Infinity,
+        //theta用于判断距离远近而采取不同的方法对粒子的速度进行处理
         theta2 = 0.81;
 
     function force(_) {
@@ -10844,7 +10933,7 @@ var   keyPrefix$1 = "$";
     function accumulate(quad) {
       var strength = 0, q, c, x, y, i;
 
-      // For internal nodes, accumulate forces from child quadrants.
+      // 对于根节点，根据其子节点来计算
       if (quad.length) {
         for (x = y = i = 0; i < 4; ++i) {
           if ((q = quad[i]) && (c = q.value)) {
@@ -10855,7 +10944,7 @@ var   keyPrefix$1 = "$";
         quad.y = y / strength;
       }
 
-      // For leaf nodes, accumulate forces from coincident quadrants.
+      // 对于叶子节点，根据其是否有相同节点来计算strength值
       else {
         q = quad;
         q.x = q.data.x;
@@ -10875,8 +10964,7 @@ var   keyPrefix$1 = "$";
           w = x2 - x1,
           l = x * x + y * y;
 
-      // Apply the Barnes-Hut approximation if possible.
-      // Limit forces for very close nodes; randomize direction if coincident.
+      // 如果quad和node间的距离较远则根据value、alpha和l来调整node的速度
       if (w * w / theta2 < l) {
         if (l < distanceMax2) {
           if (x === 0) x = jiggle(), l += x * x;
@@ -10888,10 +10976,11 @@ var   keyPrefix$1 = "$";
         return true;
       }
 
-      // Otherwise, process points directly.
+      // 如果quad为根节点则返回去访问其子节点
       else if (quad.length || l >= distanceMax2) return;
-
-      // Limit forces for very close nodes; randomize direction if coincident.
+      //quad和node相同时不会执行以下过程
+      //当quad和node间距离较近时，同时要考虑strength来调整node的速度
+      
       if (quad.data !== node || quad.next) {
         if (x === 0) x = jiggle(), l += x * x;
         if (y === 0) y = jiggle(), l += y * y;
@@ -10928,7 +11017,7 @@ var   keyPrefix$1 = "$";
 
     return force;
   }
-
+  //d3.forceX
   function x$3(x) {
     var strength = constant$6(0.1),
         nodes,
@@ -10939,6 +11028,7 @@ var   keyPrefix$1 = "$";
 
     function force(alpha) {
       for (var i = 0, n = nodes.length, node; i < n; ++i) {
+        //通过xz和strength来改变node的x轴方向的速度，使得节点像xz处靠近。strength的值越大，node的速度改变的越快，即会更快的到达指定坐标位置而趋于稳定
         node = nodes[i], node.vx += (xz[i] - node.x) * strengths[i] * alpha;
       }
     }
@@ -10949,6 +11039,7 @@ var   keyPrefix$1 = "$";
       strengths = new Array(n);
       xz = new Array(n);
       for (i = 0; i < n; ++i) {
+        //对每个node分别计算x坐标存入xz数组中，同时计算strength值
         strengths[i] = isNaN(xz[i] = +x(nodes[i], i, nodes)) ? 0 : +strength(nodes[i], i, nodes);
       }
     }
@@ -10968,7 +11059,7 @@ var   keyPrefix$1 = "$";
 
     return force;
   }
-
+  //d3.forceY
   function y$3(y) {
     var strength = constant$6(0.1),
         nodes,
@@ -11080,7 +11171,7 @@ var   keyPrefix$1 = "$";
   function defaultSubject(d) {
     return d == null ? {x: exports.event.x, y: exports.event.y} : d;
   }
-
+  //d3.drag
   function drag() {
     var filter = defaultFilter,
         container = defaultContainer,
