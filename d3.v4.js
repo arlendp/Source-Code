@@ -9239,7 +9239,7 @@ var   epsilon$2 = 1e-6;
   function defaultSeparation(a, b) {
     return a.parent === b.parent ? 1 : 2;
   }
-
+  //计算当前节点的所有子节点x坐标之和与子节点长度的比值即子节点的平均x坐标
   function meanX(children) {
     return children.reduce(meanXReduce, 0) / children.length;
   }
@@ -9247,7 +9247,7 @@ var   epsilon$2 = 1e-6;
   function meanXReduce(x, c) {
     return x + c.x;
   }
-
+  //计算子节点中最大的y坐标并加1
   function maxY(children) {
     return 1 + children.reduce(maxYReduce, 0);
   }
@@ -9255,19 +9255,19 @@ var   epsilon$2 = 1e-6;
   function maxYReduce(y, c) {
     return Math.max(y, c.y);
   }
-
+  //返回最左边的叶子节点
   function leafLeft(node) {
     var children;
     while (children = node.children) node = children[0];
     return node;
   }
-
+  //返回最右边的叶子节点
   function leafRight(node) {
     var children;
     while (children = node.children) node = children[children.length - 1];
     return node;
   }
-
+  //d3.cluster
   function cluster() {
     var separation = defaultSeparation,
         dx = 1,
@@ -9278,13 +9278,14 @@ var   epsilon$2 = 1e-6;
       var previousNode,
           x = 0;
 
-      // First walk, computing the initial x & y values.
       root.eachAfter(function(node) {
         var children = node.children;
         if (children) {
+          //计算非叶子节点的x、y坐标，与其子节点相关
           node.x = meanX(children);
           node.y = maxY(children);
         } else {
+          // 如果是叶子节点，则其y坐标为0，x坐标则根据当前节点与前一个节点是否含有相同的父节点来设置
           node.x = previousNode ? x += separation(node, previousNode) : 0;
           node.y = 0;
           previousNode = node;
@@ -9296,20 +9297,22 @@ var   epsilon$2 = 1e-6;
           x0 = left.x - separation(left, right) / 2,
           x1 = right.x + separation(right, left) / 2;
 
-      // Second walk, normalizing x & y to the desired size.
+      // 根据size大小对节点的x, y坐标进行调整
       return root.eachAfter(nodeSize ? function(node) {
+        //nodeSize为true时，将root放置于(0, 0)位置
         node.x = (node.x - root.x) * dx;
         node.y = (root.y - node.y) * dy;
       } : function(node) {
+        //否则，按比例对节点坐标进行调整
         node.x = (node.x - x0) / (x1 - x0) * dx;
         node.y = (1 - (root.y ? node.y / root.y : 1)) * dy;
       });
     }
-
+    //separation用于将相邻的叶子节点进行分离
     cluster.separation = function(x) {
       return arguments.length ? (separation = x, cluster) : separation;
     };
-
+    //以数组的形式设置cluster的范围大小
     cluster.size = function(x) {
       return arguments.length ? (nodeSize = false, dx = +x[0], dy = +x[1], cluster) : (nodeSize ? null : [dx, dy]);
     };
@@ -9320,7 +9323,7 @@ var   epsilon$2 = 1e-6;
 
     return cluster;
   }
-
+  //广度优先？？？
   function node_each(callback) {
     var node = this, current, next = [node], children, i, n;
     do {
@@ -9334,7 +9337,7 @@ var   epsilon$2 = 1e-6;
     } while (next.length);
     return this;
   }
-
+  // 先处理回调函数，后访问子节点
   function node_eachBefore(callback) {
     var node = this, nodes = [node], children, i;
     while (node = nodes.pop()) {
@@ -9345,7 +9348,16 @@ var   epsilon$2 = 1e-6;
     }
     return this;
   }
-
+  //采用后序遍历，先访问所有节点，之后逐个执行回调
+  //        a
+  //       / \
+  //      /   \
+  //     b     c
+  //    / \     \
+  //   /   \     \
+  //  d     e     f
+  //  
+  //  next = [a, c, f, b, e, d]
   function node_eachAfter(callback) {
     var node = this, nodes = [node], next = [], children, i, n;
     while (node = nodes.pop()) {
@@ -9359,7 +9371,7 @@ var   epsilon$2 = 1e-6;
     }
     return this;
   }
-
+  //通过value函数对每个节点的data进行计算，节点的value值为其自己的value值加上所有子节点的value值之和。
   function node_sum(value) {
     return this.eachAfter(function(node) {
       var sum = +value(node.data) || 0,
@@ -9369,7 +9381,7 @@ var   epsilon$2 = 1e-6;
       node.value = sum;
     });
   }
-
+  //对所有节点的子节点进行排序，内部调用Array的原型链方法
   function node_sort(compare) {
     return this.eachBefore(function(node) {
       if (node.children) {
@@ -9377,23 +9389,25 @@ var   epsilon$2 = 1e-6;
       }
     });
   }
-
+  //计算当前node到end的最短路径，返回的数组从当前节点的父节点开始到公共节点，然后到目标节点
   function node_path(end) {
     var start = this,
         ancestor = leastCommonAncestor(start, end),
         nodes = [start];
+    //从start开始向上查找至ancestor
     while (start !== ancestor) {
       start = start.parent;
       nodes.push(start);
     }
     var k = nodes.length;
     while (end !== ancestor) {
+
       nodes.splice(k, 0, end);
       end = end.parent;
     }
     return nodes;
   }
-
+  //返回最近的相同的祖先节点
   function leastCommonAncestor(a, b) {
     if (a === b) return a;
     var aNodes = a.ancestors(),
@@ -9408,7 +9422,7 @@ var   epsilon$2 = 1e-6;
     }
     return c;
   }
-
+  //返回当前节点的所有父级节点，以当前节点开始逐级向上查找直至根节点
   function node_ancestors() {
     var node = this, nodes = [node];
     while (node = node.parent) {
@@ -9416,7 +9430,7 @@ var   epsilon$2 = 1e-6;
     }
     return nodes;
   }
-
+  //返回当前节点的所有子节点，包括当前节点
   function node_descendants() {
     var nodes = [];
     this.each(function(node) {
@@ -9424,7 +9438,7 @@ var   epsilon$2 = 1e-6;
     });
     return nodes;
   }
-
+  //返回当前节点包含的所有叶子节点
   function node_leaves() {
     var leaves = [];
     this.eachBefore(function(node) {
@@ -9434,7 +9448,7 @@ var   epsilon$2 = 1e-6;
     });
     return leaves;
   }
-
+  //以节点的父节点和本身构成一个新的对象，返回包含所有该种对象的数组
   function node_links() {
     var root = this, links = [];
     root.each(function(node) {
@@ -9444,7 +9458,12 @@ var   epsilon$2 = 1e-6;
     });
     return links;
   }
-
+  /**
+   * 处理层级数据
+   * @param  {object} data     输入的数据
+   * @param  {function} children 用于获取data中的children数据的函数
+   * @return {object}          处理后的层级数据
+   */
   function hierarchy(data, children) {
     var root = new Node(data),
         valued = +data.value && (root.value = data.value),
@@ -9456,7 +9475,7 @@ var   epsilon$2 = 1e-6;
         n;
 
     if (children == null) children = defaultChildren;
-
+    //先处理父节点，后处理子节点，构造成node对象
     while (node = nodes.pop()) {
       if (valued) node.value = +node.data.value;
       if ((childs = children(node.data)) && (n = childs.length)) {
@@ -9471,7 +9490,7 @@ var   epsilon$2 = 1e-6;
 
     return root.eachBefore(computeHeight);
   }
-
+  //复制一份相同的node
   function node_copy() {
     return hierarchy(this).eachBefore(copyData);
   }
@@ -9483,13 +9502,18 @@ var   epsilon$2 = 1e-6;
   function copyData(node) {
     node.data = node.data.data;
   }
-
+  //计算节点的层级，即该节点最多有少层子节点
   function computeHeight(node) {
     var height = 0;
     do node.height = height;
     while ((node = node.parent) && (node.height < ++height));
   }
-
+  /* node构造函数
+   * data: 该node相关联的数据
+   * depth: 该节点所在的层级数，根节点为0，子节点逐渐递增
+   * height: 该节点与其最远的子节点之间的距离，叶子节点为0
+   * parent: 该节点的父节点
+   */
   function Node(data) {
     this.data = data;
     this.depth =
@@ -9679,15 +9703,15 @@ var   epsilon$2 = 1e-6;
 
     var a, b, c, n;
 
-    // Place the first circle.
+    // 放置第一个圆
     a = circles[0], a.x = 0, a.y = 0;
     if (!(n > 1)) return a.r;
 
-    // Place the second circle.
+    // 放置第二个圆，使两个圆相切
     b = circles[1], a.x = -b.r, b.x = a.r, b.y = 0;
     if (!(n > 2)) return a.r + b.r;
 
-    // Place the third circle.
+    // 放置第三个圆
     place(b, a, c = circles[2]);
 
     // Initialize the weighted centroid.
@@ -9793,7 +9817,8 @@ var   epsilon$2 = 1e-6;
   function defaultRadius(d) {
     return Math.sqrt(d.value);
   }
-
+  //d3.pack
+  //TODO：理解pack部分实现
   function index() {
     var radius = null,
         dx = 1,
@@ -9829,7 +9854,7 @@ var   epsilon$2 = 1e-6;
 
     return pack;
   }
-
+  //通过radius函数给叶子节点设置半径r
   function radiusLeaf(radius) {
     return function(node) {
       if (!node.children) {
@@ -9885,7 +9910,7 @@ var   epsilon$2 = 1e-6;
       node.x0 = x0, node.x1 = x0 += node.value * k;
     }
   }
-
+  //d3.partition
   function partition() {
     var dx = 1,
         dy = 1,
@@ -9910,6 +9935,7 @@ var   epsilon$2 = 1e-6;
         }
         var x0 = node.x0,
             y0 = node.y0,
+            //这里减去padding用于与下个兄弟节点分开
             x1 = node.x1 - padding,
             y1 = node.y1 - padding;
         if (x1 < x0) x0 = x1 = (x0 + x1) / 2;
@@ -9928,7 +9954,7 @@ var   epsilon$2 = 1e-6;
     partition.size = function(x) {
       return arguments.length ? (dx = +x[0], dy = +x[1], partition) : [dx, dy];
     };
-
+    //padding用于将节点的相邻子节点分开
     partition.padding = function(x) {
       return arguments.length ? (padding = +x, partition) : padding;
     };
@@ -9946,7 +9972,7 @@ var   keyPrefix$1 = "$";
   function defaultParentId(d) {
     return d.parentId;
   }
-
+  //d3.stratify
   function stratify() {
     var id = defaultId,
         parentId = defaultParentId;
@@ -9964,7 +9990,9 @@ var   keyPrefix$1 = "$";
           nodeByKey = {};
 
       for (i = 0; i < n; ++i) {
+        //将data中每个数据构造成node对象
         d = data[i], node = nodes[i] = new Node(d);
+        //根据id函数获取data的id
         if ((nodeId = id(d, i, data)) != null && (nodeId += "")) {
           nodeKey = keyPrefix$1 + (node.id = nodeId);
           nodeByKey[nodeKey] = nodeKey in nodeByKey ? ambiguous : node;
@@ -9973,32 +10001,37 @@ var   keyPrefix$1 = "$";
 
       for (i = 0; i < n; ++i) {
         node = nodes[i], nodeId = parentId(data[i], i, data);
+        //parentId为空时认为该node为根节点，但只能存在一个parentId为空的节点
         if (nodeId == null || !(nodeId += "")) {
           if (root) throw new Error("multiple roots");
           root = node;
         } else {
           parent = nodeByKey[keyPrefix$1 + nodeId];
+          //如果记录中没有parentId，则抛出异常
           if (!parent) throw new Error("missing: " + nodeId);
           if (parent === ambiguous) throw new Error("ambiguous: " + nodeId);
+          //将该节点添加至parentId对应节点的children属性中
           if (parent.children) parent.children.push(node);
           else parent.children = [node];
+          //为node节点添加parent属性
           node.parent = parent;
         }
       }
 
       if (!root) throw new Error("no root");
       root.parent = preroot;
+      //计算节点的depth和height值
       root.eachBefore(function(node) { node.depth = node.parent.depth + 1; --n; }).eachBefore(computeHeight);
       root.parent = null;
       if (n > 0) throw new Error("cycle");
 
       return root;
     }
-
+    //设置获取id的函数
     stratify.id = function(x) {
       return arguments.length ? (id = required(x), stratify) : id;
     };
-
+    //设置获取父节点id的函数
     stratify.parentId = function(x) {
       return arguments.length ? (parentId = required(x), stratify) : parentId;
     };
@@ -10014,16 +10047,13 @@ var   keyPrefix$1 = "$";
   //   return (a.parent === b.parent ? 1 : 2) / a.depth;
   // }
 
-  // This function is used to traverse the left contour of a subtree (or
-  // subforest). It returns the successor of v on this contour. This successor is
-  // either given by the leftmost child of v or by the thread of v. The function
-  // returns null if and only if v is on the highest level of its subtree.
+  // 返回节点的第一个子节点
   function nextLeft(v) {
     var children = v.children;
     return children ? children[0] : v.t;
   }
 
-  // This function works analogously to nextLeft.
+  // 返回节点的最后一个子节点
   function nextRight(v) {
     var children = v.children;
     return children ? children[children.length - 1] : v.t;
@@ -10062,7 +10092,11 @@ var   keyPrefix$1 = "$";
   function nextAncestor(vim, v, ancestor) {
     return vim.a.parent === v.parent ? vim.a : ancestor;
   }
-
+  /**
+   * TreeNode构造函数
+   * @param {object} node 数据节点
+   * @param {number} i     该节点在所有兄弟节点中的索引顺序
+   */
   function TreeNode(node, i) {
     this._ = node;
     this.parent = null;
@@ -10087,7 +10121,7 @@ var   keyPrefix$1 = "$";
         children,
         i,
         n;
-
+    //将所有的node构造成TreeNode对象
     while (node = nodes.pop()) {
       if (children = node._.children) {
         node.children = new Array(n = children.length);
@@ -10102,7 +10136,7 @@ var   keyPrefix$1 = "$";
     return tree;
   }
 
-  // Node-link tree diagram using the Reingold-Tilford "tidy" algorithm
+  // d3.tree
   function tree() {
     var separation = defaultSeparation$1,
         dx = 1,
@@ -10150,17 +10184,23 @@ var   keyPrefix$1 = "$";
     function firstWalk(v) {
       var children = v.children,
           siblings = v.parent.children,
+          //节点v的前一个兄弟节点
           w = v.i ? siblings[v.i - 1] : null;
       if (children) {
         executeShifts(v);
+        //子节点位置的中点
         var midpoint = (children[0].z + children[children.length - 1].z) / 2;
+        //非叶子节点有前一个兄弟节点的情况
         if (w) {
+          //根据前一个兄弟节点计算的z值
           v.z = w.z + separation(v._, w._);
+          //根据子元素位置计算的z值与以上z值的偏移
           v.m = v.z - midpoint;
         } else {
           v.z = midpoint;
         }
       } else if (w) {
+        //如果节点的前一个兄弟节点存在，则计算当前位置
         v.z = w.z + separation(v._, w._);
       }
       v.parent.A = apportion(v, w, v.parent.A || siblings[0]);
@@ -10195,6 +10235,7 @@ var   keyPrefix$1 = "$";
             som = vom.m,
             shift;
         while (vim = nextRight(vim), vip = nextLeft(vip), vim && vip) {
+          //当前node节点的子节点中的第一个和最后一个节点
           vom = nextLeft(vom);
           vop = nextRight(vop);
           vop.a = v;
@@ -10247,14 +10288,16 @@ var   keyPrefix$1 = "$";
         node,
         i = -1,
         n = nodes.length,
+        //根据value值对dy进行划分
         k = parent.value && (y1 - y0) / parent.value;
 
     while (++i < n) {
+      //按value比值对子节点区域进行分割
       node = nodes[i], node.x0 = x0, node.x1 = x1;
       node.y0 = y0, node.y1 = y0 += node.value * k;
     }
   }
-
+  //黄金分割比
   var phi = (1 + Math.sqrt(5)) / 2;
 
   function squarifyRatio(ratio, parent, x0, y0, x1, y1) {
@@ -10278,44 +10321,49 @@ var   keyPrefix$1 = "$";
     while (i0 < n) {
       dx = x1 - x0, dy = y1 - y0;
       minValue = maxValue = sumValue = nodes[i0].value;
+      //根据长宽比和黄金分割比计算alpha，其值不受子节点影响
       alpha = Math.max(dy / dx, dx / dy) / (value * ratio);
       beta = sumValue * sumValue * alpha;
       minRatio = Math.max(maxValue / beta, beta / minValue);
 
-      // Keep adding nodes while the aspect ratio maintains or improves.
+      // 当ratio不增加时，添加node
       for (i1 = i0 + 1; i1 < n; ++i1) {
         sumValue += nodeValue = nodes[i1].value;
         if (nodeValue < minValue) minValue = nodeValue;
         if (nodeValue > maxValue) maxValue = nodeValue;
         beta = sumValue * sumValue * alpha;
         newRatio = Math.max(maxValue / beta, beta / minValue);
+        //不会添加使ratio增加的node，如果不满足退出循环
         if (newRatio > minRatio) { sumValue -= nodeValue; break; }
         minRatio = newRatio;
       }
 
-      // Position and record the row orientation.
+      // 调整node的范围并确定分割的方向
       rows.push(row = {value: sumValue, dice: dx < dy, children: nodes.slice(i0, i1)});
+      //当node区域长比宽短时
       if (row.dice) treemapDice(row, x0, y0, x1, value ? y0 += dy * sumValue / value : y1);
+      //当node区域宽比长短时
       else treemapSlice(row, x0, y0, value ? x0 += dx * sumValue / value : x1, y1);
+      //value等于剩余未分配位置的node的value之和，i0也从未分配的node开始
       value -= sumValue, i0 = i1;
     }
 
     return rows;
   }
-
+  //按黄金分割比对treenode区块进行划分
   var squarify = (function custom(ratio) {
 
     function squarify(parent, x0, y0, x1, y1) {
       squarifyRatio(ratio, parent, x0, y0, x1, y1);
     }
-
+    //调用custom函数来设置ratio
     squarify.ratio = function(x) {
       return custom((x = +x) > 1 ? x : 1);
     };
 
     return squarify;
   })(phi);
-
+  //d3.treemap
   function index$1() {
     var tile = squarify,
         round = false,
@@ -10341,10 +10389,12 @@ var   keyPrefix$1 = "$";
 
     function positionNode(node) {
       var p = paddingStack[node.depth],
+          //将有效区域根据padding来缩小
           x0 = node.x0 + p,
           y0 = node.y0 + p,
           x1 = node.x1 - p,
           y1 = node.y1 - p;
+      //处理padding过大的情况
       if (x1 < x0) x0 = x1 = (x0 + x1) / 2;
       if (y1 < y0) y0 = y1 = (y0 + y1) / 2;
       node.x0 = x0;
@@ -10353,6 +10403,7 @@ var   keyPrefix$1 = "$";
       node.y1 = y1;
       if (node.children) {
         p = paddingStack[node.depth + 1] = paddingInner(node) / 2;
+        //在调整了范围的基础上根据特定的padding再次进行调整
         x0 += paddingLeft(node) - p;
         y0 += paddingTop(node) - p;
         x1 -= paddingRight(node) - p;
@@ -10370,11 +10421,11 @@ var   keyPrefix$1 = "$";
     treemap.size = function(x) {
       return arguments.length ? (dx = +x[0], dy = +x[1], treemap) : [dx, dy];
     };
-
+    //设置tile函数，默认是d3.treemapSquarify，即按黄金分割比进行划分
     treemap.tile = function(x) {
       return arguments.length ? (tile = required(x), treemap) : tile;
     };
-
+    //同时设置paddingInner和paddingOuter
     treemap.padding = function(x) {
       return arguments.length ? treemap.paddingInner(x).paddingOuter(x) : treemap.paddingInner();
     };
@@ -10382,7 +10433,7 @@ var   keyPrefix$1 = "$";
     treemap.paddingInner = function(x) {
       return arguments.length ? (paddingInner = typeof x === "function" ? x : constant$5(+x), treemap) : paddingInner;
     };
-
+    //paddingOuter是由四个方向的padding构成
     treemap.paddingOuter = function(x) {
       return arguments.length ? treemap.paddingTop(x).paddingRight(x).paddingBottom(x).paddingLeft(x) : treemap.paddingTop();
     };
@@ -10405,7 +10456,7 @@ var   keyPrefix$1 = "$";
 
     return treemap;
   }
-
+  //d3.treemapBinary
   function binary(parent, x0, y0, x1, y1) {
     var nodes = parent.children,
         i, n = nodes.length,
@@ -10426,10 +10477,11 @@ var   keyPrefix$1 = "$";
       }
 
       var valueOffset = sums[i],
+          //加上前面的已经计算过的value值作为偏移量，这样才能将sums[mid]跟valueTarget进行比较
           valueTarget = (value / 2) + valueOffset,
           k = i + 1,
           hi = j - 1;
-
+      //二分法查找
       while (k < hi) {
         var mid = k + hi >>> 1;
         if (sums[mid] < valueTarget) k = mid + 1;
@@ -10438,12 +10490,15 @@ var   keyPrefix$1 = "$";
 
       var valueLeft = sums[k] - valueOffset,
           valueRight = value - valueLeft;
-
+      //当矩形较高时，进行上下分割
       if ((y1 - y0) > (x1 - x0)) {
+        //根据左右的value和进行坐标划分
         var yk = (y0 * valueRight + y1 * valueLeft) / value;
         partition(i, k, valueLeft, x0, y0, x1, yk);
         partition(k, j, valueRight, x0, yk, x1, y1);
-      } else {
+      } 
+      //否则进行左右分割
+      else {
         var xk = (x0 * valueRight + x1 * valueLeft) / value;
         partition(i, k, valueLeft, x0, y0, xk, y1);
         partition(k, j, valueRight, xk, y0, x1, y1);
