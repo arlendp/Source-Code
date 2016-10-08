@@ -4885,6 +4885,7 @@ var   tau$1 = 2 * pi$1;
   var tsvFormat = tsv.format;
   var tsvFormatRows = tsv.formatRows;
 
+  //d3.request
   function request(url, callback) {
     var request,
         event = dispatch("beforesend", "progress", "load", "error"),
@@ -4897,12 +4898,13 @@ var   tau$1 = 2 * pi$1;
         responseType,
         timeout = 0;
 
-    // If IE does not support CORS, use XDomainRequest.
+    // 对于不支持跨域资源共享的IE浏览器，采用XDomainRequest
     if (typeof XDomainRequest !== "undefined"
         && !("withCredentials" in xhr)
         && /^(http(s)?:)?\/\//.test(url)) xhr = new XDomainRequest;
-
+    //如果支持onload回调方法则绑定该方法，否则使用onreadystatechange方法
     "onload" in xhr
+        //三种事件分别是请求成功完成、请求失败和请求时限到期未完成
         ? xhr.onload = xhr.onerror = xhr.ontimeout = respond
         : xhr.onreadystatechange = function(o) { xhr.readyState > 3 && respond(o); };
 
@@ -4913,6 +4915,7 @@ var   tau$1 = 2 * pi$1;
           || status === 304) {
         if (response) {
           try {
+            //先通过response函数对返回结果进行处理
             result = response.call(request, xhr);
           } catch (e) {
             event.call("error", request, e);
@@ -4932,6 +4935,7 @@ var   tau$1 = 2 * pi$1;
     };
 
     request = {
+      //设置请求头信息
       header: function(name, value) {
         name = (name + "").toLowerCase();
         if (arguments.length < 2) return headers.get(name);
@@ -4940,15 +4944,21 @@ var   tau$1 = 2 * pi$1;
         return request;
       },
 
-      // If mimeType is non-null and no Accept header is set, a default is used.
+      // 设置服务器返回数据类型，用于accept请求头和overrideMimeType方法
       mimeType: function(value) {
         if (!arguments.length) return mimeType;
         mimeType = value == null ? null : value + "";
         return request;
       },
 
-      // Specifies what type the response value should take;
-      // for instance, arraybuffer, blob, document, or text.
+      /* 指定返回值类型，可以为以下几种值：
+       * ”“：字符串（默认值）
+       * “arraybuffer”：ArrayBuffer对象
+       * “blob”：Blob对象
+       * “document”：Document对象
+       * “json”：JSON对象
+       * “text”：字符串
+       */
       responseType: function(value) {
         if (!arguments.length) return responseType;
         responseType = value;
@@ -4969,35 +4979,38 @@ var   tau$1 = 2 * pi$1;
         return arguments.length < 1 ? password : (password = value == null ? null : value + "", request);
       },
 
-      // Specify how to convert the response content to a specific type;
-      // changes the callback value on "load" events.
+      //将返回内容转化成指定类型
       response: function(value) {
         response = value;
         return request;
       },
 
-      // Alias for send("GET", …).
+      // 使用GET方法发送请求
       get: function(data, callback) {
         return request.send("GET", data, callback);
       },
 
-      // Alias for send("POST", …).
+      // 使用POST方法发送请求
       post: function(data, callback) {
         return request.send("POST", data, callback);
       },
 
-      // If callback is non-null, it will be used for error and load events.
+      // 修改请求头信息，设置服务器返回数据类型，监听error和load事件并设置回调函数
       send: function(method, data, callback) {
         xhr.open(method, url, true, user, password);
         if (mimeType != null && !headers.has("accept")) headers.set("accept", mimeType + ",*/*");
+        //设置请求头
         if (xhr.setRequestHeader) headers.each(function(value, name) { xhr.setRequestHeader(name, value); });
+        //指定服务器返回数据类型
         if (mimeType != null && xhr.overrideMimeType) xhr.overrideMimeType(mimeType);
         if (responseType != null) xhr.responseType = responseType;
         if (timeout > 0) xhr.timeout = timeout;
         if (callback == null && typeof data === "function") callback = data, data = null;
         if (callback != null && callback.length === 1) callback = fixCallback(callback);
         if (callback != null) request.on("error", callback).on("load", function(xhr) { callback(null, xhr); });
+        //调用beforesend监听事件
         event.call("beforesend", request, xhr);
+        //发送请求
         xhr.send(data == null ? null : data);
         return request;
       },
@@ -5006,13 +5019,13 @@ var   tau$1 = 2 * pi$1;
         xhr.abort();
         return request;
       },
-
+      //设置事件监听函数，只能是以下类型：beforesend、progress、load和error
       on: function() {
         var value = event.on.apply(event, arguments);
         return value === event ? request : value;
       }
     };
-
+    //如果callback参数被传入，则会立即将请求发送出去，若没有传入callback则可继续配置request
     if (callback != null) {
       if (typeof callback !== "function") throw new Error("invalid callback: " + callback);
       return request.get(callback);
@@ -5048,7 +5061,7 @@ var   tau$1 = 2 * pi$1;
   var html = type("text/html", function(xhr) {
     return document.createRange().createContextualFragment(xhr.responseText);
   });
-
+  //d3.json
   var json = type("application/json", function(xhr) {
     return JSON.parse(xhr.responseText);
   });
@@ -5065,20 +5078,22 @@ var   tau$1 = 2 * pi$1;
 
   function dsv$1(defaultMimeType, parse) {
     return function(url, row, callback) {
+      //可以省略row函数
       if (arguments.length < 3) callback = row, row = null;
       var r = request(url).mimeType(defaultMimeType);
+      //设置row函数
       r.row = function(_) { return arguments.length ? r.response(responseOf(parse, row = _)) : row; };
       r.row(row);
       return callback ? r.get(callback) : r;
     };
   }
-
+  //返回解析函数
   function responseOf(parse, row) {
     return function(request) {
       return parse(request.responseText, row);
     };
   }
-
+  //d3.csv
   var csv$1 = dsv$1("text/csv", csvParse);
 
   var tsv$1 = dsv$1("text/tab-separated-values", tsvParse);
